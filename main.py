@@ -15,6 +15,20 @@ import pdfminer
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
 class Catalog(object):
+    ''' The Catalog class consists of a collection (dictionary), a
+    rootURL to pull information from, and a totalNumBooks.
+    
+    The collection will have key-value pairs where the key is a
+    four digit integer (book identification number) associated
+    with the book's web page on e-booksdirectory.com and where
+    the value is another dictionary. The totalNumBooks acts as
+    a size cap so we can limit the size of our collection during
+    testing. The collection dictionary takes the following form:
+        collection[book] = {\
+            'title':'Jurassic Park', \
+            'author':'Michael Crichton', \
+            'downloadLinks':['http://www.google.com']}
+    '''
     def __init__(self):
         self.collection = {}
         self.rootURL = \
@@ -24,14 +38,22 @@ class Catalog(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def build_catalog(self, mode="offline"):
+        '''
+        The build_catalog, depending on the mode, will either build
+        self.collection from a file with lines of the form
+            book, title, author, ..., downloadLinks, \n
+        or if mode!="offline", this function will pull the catalog 
+        self.collection information rom the web. Pulling from the 
+        web is slow, so we prefer to pull from a local copy if we can.
+        '''
         print "\n\n Building catalog."
-        filename = "primary.dat"
-        self.collection = {}
+        filename = "primary.dat" # File we will store pulled data in.
+        self.collection = {} # start fresh
         if mode != "offline":
             print "Performing initial pull..."            
-            self.initial_pull()
+            self.initial_pull() # Entry function for web pulling
             print "Writing data to file..."
-            self.write_data_to_file(filename)
+            self.write_data_to_file(filename) # Write
         elif os.path.isfile(filename):
             self.build_catalog_from_file()
         else:
@@ -42,6 +64,14 @@ class Catalog(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def initial_pull(self):
+        '''
+        Entry function for web pulling. Use BeautifulSoup to parse
+        html information at the rootURL to populate self.collection
+        by using write_entry_to_catalog (which gets everything like
+        author, title, year of publication, publisher) and by using
+        pull_download_links (which retrieves links under 'Download
+        Links' on the book webpage).
+        '''
         print "\n\n Starting initial pull..."
         self.collection={}
         page = BeautifulSoup(urllib2.urlopen(self.rootURL), \
@@ -64,6 +94,12 @@ class Catalog(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def write_entry_to_catalog(self, entry, mode="url"):
+        '''
+        This function takes an entry from the html of the main page
+        and extracts book key, title, author, book page url, year
+        of publication, and publisher, and throws it into the
+        self.collection dictionary.
+        '''
         result = []
         if mode=="url":
             url = entry.find('a')['href']
@@ -121,8 +157,13 @@ class Catalog(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def pull_download_links(self, book):
-        # This function takes each entry from self.collection and
-        # collects all of the possible host and download links.
+        ''' 
+        This function takes a look at a book's web page and extracts
+        all of the <a href> tags from the 'Download Links' section
+        and puts them into a big array. We store that into the
+        self.collection[book] dictionary with key 'downloadLinks'
+        '''
+
         url = "http://www.e-booksdirectory.com/details.php?ebook=" + \
             str(book)
 
@@ -144,10 +185,9 @@ class Catalog(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def write_data_to_file(self, filename):
-        # After constructing the dictionary and the list of possible
-        # host/download links, we write all this information to a 
-        # file so we don't have to keep pinging their server.
-        
+        '''
+        This one is simple: take self.collection and dump into a file.
+        '''
         try:
             f = open(filename, "w")
         except IOError:
@@ -171,6 +211,8 @@ class Catalog(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def build_catalog_from_file(self):
+        ''' Take the dump file frmo previous function and reconstruct
+        self.collection '''
         if os.path.isfile("primary.dat"):
             tempFile = open("primary.dat", "r")
             f = tempFile.readlines()
@@ -233,7 +275,7 @@ class Catalog(object):
                     else:
                         break
         else:
-            print "Error: no collection.dat file found! Pulling from the web instead. \n"
+            print "Error: no primary.dat file found! Pulling from the web instead. \n"
             self.initial_pull()
             self.write_data_to_file(filename)
         pass
@@ -243,6 +285,7 @@ class Catalog(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
 class TestCatalog(unittest.TestCase):
+    ''' Test Class for testing Catalog class.'''
     def test_build_catalog(self):
         print "Testing build_catalog"
         c = Catalog()
@@ -348,23 +391,15 @@ class TestCatalog(unittest.TestCase):
     
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
 class BookDataPoint(object):
+    ''' BookDataPoint class is a simple object. We have two
+    dictionaries, one self.data and one self.hist. We will take
+    book information like author, title, etc, place it into self.data
+    and we will take a histogram of word frequency and store it into
+    self.hist
+    '''
     def __init__(self):
         self.data = {}
         self.hist = {}
@@ -372,6 +407,19 @@ class BookDataPoint(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
         
     def assign_data(self, sentence, bookData):
+        ''' 
+        This function takes in a string, sentence, and an object,
+        bookData. The name of the variable sentence is a bit of a
+        misnomer, for this string represents the whole of the book 
+        text.  
+        
+        This function stores bookdata into self.data and constructs
+        a relative word frequency histogram to store in self.hist of
+        the form
+            {word:frequency}
+        where word is a string ("hello") and frequency is a float
+        (0.001284).
+        '''
         sentence = (sentence.translate(None,\
             string.punctuation)).lower()
         sentence = sentence.split()
@@ -393,6 +441,7 @@ class BookDataPoint(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
 class TestBookDataPoint(unittest.TestCase):
+    ''' This lass tests the BookDataPoint class. '''
     def test_assign_data(self):
         print "Testing BookDataPoint's assign_data function"
         sentence = "Jane sees Dick run. Run, Dick, run! Dick sees Jane play with Spot. Play, Jane, play!"
@@ -413,22 +462,40 @@ class TestBookDataPoint(unittest.TestCase):
 
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
 class WordSpace(object):
+    ''' The WordSpace object does several things.
+    This represents the ambient euclidean space in which all texts
+    have been measured: each new word is a new dimension. 
+    
+    This class has variable self.space, which is a dictionary
+    of values unique strings/words and with keys the same word.
+    This class has variable self.observations, which is a dictionary
+    whose keys are BookDataPoint.data and whose values are
+    BookDataPoints. This class has two similar variables
+    self.initial_roots and self.new_initial_roots: these are 
+    both dictionaries, and they store sets of points from
+    our WordSpace (high dimensional euclidean space) which are 
+    disguised as BookDataPoints (although they don't correspond to
+    books).
+    
+    This class has a function, add_observation, that is used 
+    to add a BookDataPoint to self.observations, and to update
+    self.space with new unseen words. This class also has the
+    functions distance_metric_ell_one* to compute the ell_one
+    norm between two texts.
+    
+    This class can generate initial roots by randomly generating
+    sentences from it's ambient WordSpace, and this class can
+    use initial_roots to find clusters within self.observations 
+    with cluster_observations. To do so, it has to compute means
+    with find_mean and find_cluster_means, it has to reset
+    roots with set_roots_to_means, it has to associate a root
+    with a BookdataPoint with ass_root_to_point, and it has to
+    compare whether two clusterings are equivalent with both
+    check_cluster_in_clustering and check_equiv_clsuterings
+    '''
     def __init__(self):
         self.space = {}
         self.observations = {}
@@ -438,13 +505,15 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
         
     def found_word(self, word):
+        ''' Ping this for every word we see. '''
         if word not in self.space.keys():
             self.space[word] = str(word)
         
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
             
     def get_random_sentence(self, sentence_length=7):
-        # Generates a random sentence from the wordspace
+        ''' Generates a random sentence from the wordspace with lenth
+        sentence_length. '''
         sentence = []
         for i in range(sentence_length):
             randomKey = random.choice(list(self.space.keys()))
@@ -454,6 +523,10 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
     
     def add_observation(self, data_point):
+        ''' Take BookDataPoint as input and include it into the
+        self.observations dictioanry with key BookDataPoint.data
+        and, for each word in the text, call found_word
+        '''
         if data_point.data not in self.observations.keys():
             self.observations[data_point.data] = data_point
             for word in data_point.hist:
@@ -464,6 +537,9 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def distance_metric_ell_one_keys(self, key1, key2):
+        ''' One of several ell_one distance metrics: given
+        keys in the observation dictionary, compute the distance
+        between two observations'''
         for word in self.observations[key1].hist:
             if word not in self.observations[key2].hist:
                 self.observations[key2].hist[word] = 0.0
@@ -478,6 +554,10 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
         
     def distance_metric_ell_one_histos(self, hist1, hist2):
+        ''' One of several ell_one distance metrics: given
+        two histograms in the WordSpace, compute the distance
+        between the two histograms. These need not be observations.
+        '''
         for word in hist1:
             if word not in hist2.keys():
                 hist2[word] = 0.
@@ -493,6 +573,11 @@ class WordSpace(object):
 
     def distance_metric_ell_one(self, book_data_point1, \
         book_data_point2):
+        ''' One of several ell_one distance metrics: given
+        two BookDataPoints, compute the distance between them. They
+        need not be included in our ambient WordSpace (although we
+        should probably incldue them!)
+        '''
         for word in book_data_point1.hist:
             if word not in book_data_point2.hist.keys():
                 book_data_point2.hist[word] = 0.0
@@ -507,7 +592,10 @@ class WordSpace(object):
         
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
         
-    def generate_initial_roots(self, number_roots=5):
+    def generate_initial_roots(self, number_roots=7):
+        '''
+        Pick initial cluster centers.
+        '''
         if not self.initial_roots:
             self.initial_roots = {}
             for i in range(number_roots):
@@ -524,7 +612,11 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
     
     def find_mean(self, cluster):
-        # cluster = { 'key' : BookDataPoint }
+        '''
+        Given a cluster of the form
+            cluster = { 'key' : BookDataPoint }
+        find the average BookDataPoint
+        '''
         mean = {}
         for key in cluster:
             for word in cluster[key].hist:
@@ -539,10 +631,12 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def ass_root_to_point(self, data_point):
-        # Arguments: data_point is a BookDataPoint object.
-        # This function oooks through self.initial_roots for the 
-        # BookDataPoint entry that is closest in the l2 metric 
-        # to the data_point
+        ''' 
+        Arguments: data_point is a BookDataPoint object.
+        This function looks through self.initial_roots for the 
+        BookDataPoint entry that is closest in the ell_one metric 
+        to the data_point, and returns the associated root.
+        '''
         result = None
         minDist = -1.0
         for root in self.initial_roots:
@@ -556,6 +650,19 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
     
     def cluster_observations(self, number_clusters):
+        '''
+        Looks through self.observations and assigns a color (root)
+        from self.initial_roots to each. Constructs a dictionary whose
+        keys are the roots, and whose values are themselves dictionaries.
+        These dictionaries are filled with all of the books colored by 
+        the associated root, the keys are the BookDataPoints.data, 
+        like 'title', and the values are the BookDataPoints themselves.
+        
+        That is, we end up with a dictionary of dictionaries in form
+            {root_one: {book_data_one: BookDataPoint_one, ..., }, ...}
+        where root_one from initial_roots may be interpreted as the
+        color of the BookDataPoints in the value.
+        '''
         result = {}
         for obs in self.observations:
             key = self.observations[obs].data
@@ -571,6 +678,11 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def find_clustering_means(self, clustering):
+        '''
+        Given a clustering (the result of cluster_observations),
+        we wish to assign the geometric mean of the separate clusters
+        to the self.new_initial_roots object.
+        '''
         for cluster in clustering:
             self.new_initial_roots[cluster] = self.find_mean( \
                 clustering[cluster])
@@ -578,6 +690,11 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
     def check_cluster_in_clustering(self, cluster, clustering):
+        ''' 
+        Given a dictionary, cluster, of BookDataPoints and a 
+        clustering (the result of cluster_observations), check if
+        cluster is one of the values of clustering.
+        '''
         found = False
         for compare_cluster in clustering:
             if cmp(cluster, clustering[compare_cluster]) == 0:
@@ -588,6 +705,12 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
         
     def check_equivalent_clusterings(self, clustering_one, clustering_two):
+        '''
+        Check if two clusterings (the result of cluster_observations)
+        are equivalent by double containment. For each cluster in 
+        clustering_one, we check if cluster is in clustering_two by 
+        using check_cluster_in_clustering and vice versa.
+        '''
         same = True
         for cluster in clustering_one:
             if not self.check_cluster_in_clustering(clustering_one[cluster], clustering_two):
@@ -635,6 +758,9 @@ class WordSpace(object):
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####    
 
 class TestWordSpace(unittest.TestCase):
+    '''
+    Tests the WordSpace class
+    '''
     def test_report_clustering(self):
         print "Testing report_clustering in WordSpace"
         ws = WordSpace()
@@ -952,28 +1078,36 @@ class TestWordSpace(unittest.TestCase):
         
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
 class Librarian(object):
+    '''
+    This class brings it all together.
+    Variables include a catalog, cat, and a WordSpace, ws.
+    
+    Functions include:
+    consider_catalog : Load up a catalog from the web if there isn't
+        a local copy. If there is a local copy, load that up instead.
+    retrieve_catalog : For every available pdf, download it. Go get
+        a cup of tea.
+    rm : delete a file
+    retrieve_book_pdf_with_key : Given a particular key from self.cat
+        go ahead and try to download a PDF
+    retrieve_book_pdf : Given a url and a pdf_filename, download the
+        pdf from the url and store at pdf_filename.
+    pdf_to_ocr : Use pypdfocr to convert (image) pdf file to (text)
+        pdf file.
+    ocr_to_text : Use pdfminer to convert (text) pdf file to text file
+    pdf_to_text : First call pdf_to_ocr then ocr_to_text
+    ocr_catalog : Perform optical character recognition on all local PDF
+    build_word_space : For each local PDF stored as a text, build a
+        BookDataPoint for inclusion into ws.observations
+    cluster_word_space : Perform k-means clustering iteratively for
+        a certain number of iterations or until convergence.
+    '''
     def __init(self):
         self.cat = Catalog()
         self.ws = WordSpace()
-        self.totalWords = 0
-        pass
 
     def rm(self,filename):
         value = None
