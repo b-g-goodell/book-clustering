@@ -1372,21 +1372,21 @@ class TestLibrarian(unittest.TestCase):
         pass
 
 
-#print "\n\n Testing BookDataPoint object. \n\n"
-#suite = unittest.TestLoader().loadTestsFromTestCase(TestBookDataPoint)
-#unittest.TextTestRunner(verbosity=1).run(suite)
+print "\n\n Testing BookDataPoint object. \n\n"
+suite = unittest.TestLoader().loadTestsFromTestCase(TestBookDataPoint)
+unittest.TextTestRunner(verbosity=1).run(suite)
 
-#print "\n\n Testing WordSpace object. \n\n"
-#suite = unittest.TestLoader().loadTestsFromTestCase(TestWordSpace)
-#unittest.TextTestRunner(verbosity=1).run(suite)
+print "\n\n Testing WordSpace object. \n\n"
+suite = unittest.TestLoader().loadTestsFromTestCase(TestWordSpace)
+unittest.TextTestRunner(verbosity=1).run(suite)
 
-#print "\n\n Testing Catalog object. \n\n"
-#suite = unittest.TestLoader().loadTestsFromTestCase(TestCatalog)
-#unittest.TextTestRunner(verbosity=1).run(suite)
+print "\n\n Testing Catalog object. \n\n"
+suite = unittest.TestLoader().loadTestsFromTestCase(TestCatalog)
+unittest.TextTestRunner(verbosity=1).run(suite)
 
 #print "\n\n Testing Librarian object. \n\n"
 #suite = unittest.TestLoader().loadTestsFromTestCase(TestLibrarian)
 #unittest.TextTestRunner(verbosity=1).run(suite)
 
-edith = Librarian()
-edith.display_solution()
+#edith = Librarian()
+#edith.display_solution()
