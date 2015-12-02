@@ -34,6 +34,7 @@ class Catalog(object):
         self.rootURL = \
             'http://www.e-booksdirectory.com/mathematics-all.html'
         self.totalNumBooks = -1
+        self.badPDFkeyList = [6146]
         
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
 
@@ -49,13 +50,16 @@ class Catalog(object):
         print "\n\n Building catalog."
         filename = "primary.dat"
         self.collection = {}
+
         if mode != "offline":
             print "Performing initial pull..."            
             self.initial_pull()
+            #del self.collection[6146]
             print "Writing data to file..."
             self.write_data_to_file(filename)
         elif os.path.isfile(filename):
             self.build_catalog_from_file()
+            #del self.collection[6146]
         else:
             print "Error in build_catalog! You specified to not pull from the web, but there is no local copy."
         pass
@@ -85,8 +89,13 @@ class Catalog(object):
                 count += 1
                 #print "Writing entry to catalog..."
                 book, url = self.write_entry_to_catalog(entry)
-                print "Getting download links for book ", book
-                self.pull_download_links(book) #,'http://www.e-booksdirectory.com/' + url)
+                if book not in self.badPDFkeyList:
+                    print "Getting download links for book ", book
+                    self.pull_download_links(book) #,'http://www.e-booksdirectory.com/' + url)
+                else:
+                    temp_d = dict(self.collection)
+                    del temp_d[book]
+                    self.collection = dict(temp_d)
             else:
                 break
         pass
@@ -500,6 +509,64 @@ class WordSpace(object):
         self.observations = {}
         self.initial_roots = {}
         self.new_initial_roots = {}
+        self.space_filename = "word_space_space.txt"
+        self.obs_filename = "word_space_observations.txt"
+
+    def write_word_space_to_file(self):
+        if os.path.isfile(self.space_filename):
+            os.remove(space_filename)
+        f = open(self.space_filename,"w")
+        for word in self.space:
+            f.write(str(word) + "\n")
+        f.close()
+        
+        if os.path.isfile(self.obs_filename):
+            os.remove(obs_filename)
+        f = open(self.obs_filename,"w")
+        for obs in self.observations:
+            line = str(obs) + ";{"
+            for word in obs.hist:
+                line += str(word) + ":" + str(obs.hist[word]) + ", "
+            line += "}\n"
+        f.close()
+
+    def build_word_space_from_file(self):
+        result = False
+        if os.path.isfile(self.space_filename) and os.path.isfile(\
+            self.obs_filename):
+            self.space = {}
+            self.observations = {}
+
+            f = open(self.space_filename, "r")
+            lines = f.readlines()
+            f.close()
+            for line in lines:
+                line = (line.translate(None, string.punctuation)).lower()
+                line = line.split()
+                self.found_word(line[0])
+            
+            f = open(self.obs_filename, "r")
+            lines = f.readlines()
+            f.close()
+            for line in lines:
+                line = line.split(";")
+                obs_data = line[0]
+                obs_hist = line[1]
+                obs_hist = obs_hist[1:-1]
+                obs_hist = obs_hist.split(",")
+                thishist = dict()
+                for entry in obs_hist:
+                    entry = entry.split(":")
+                    word = entry[0]
+                    frequency = entry[1]
+                    thishist.update({word:frequency})
+                book = BookDataPoint()
+                book.data = obs_data
+                book.histogram = copy.deepcopy(thishist)
+                self.add_observation(book)
+            result = True
+
+        return result
         
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
         
@@ -1163,94 +1230,136 @@ class Librarian(object):
         # we first call pdf_to_ocr and then ocr_to_text
         # to generate a text file.
         ocr_filename = self.pdf_to_ocr(pdf_filename)
-        txt_filename = self.ocr_to_text(ocr_filename)
+        if ocr_filename != None:
+            txt_filename = self.ocr_to_text(ocr_filename)
+        else:
+            text_filename = None
         return txt_filename, ocr_filename
 
     def pdf_to_ocr(self, pdf_filename):
         # Given the file name of a local pdf file,
         # we use ocr to construct a searchable pdf
         # version of the file.
-        subprocess.call(["pypdfocr","-d",pdf_filename])
-        ocr_filename = pdf_filename[:-4] + "_ocr.pdf"
+        #subprocess.call(["pypdfocr","-d",pdf_filename])
+        try:
+            subprocess.call(["pypdfocr",pdf_filename])
+            ocr_filename = pdf_filename[:-4] + "_ocr.pdf"
+        except:
+            ocr_filename = None
         return ocr_filename
 
     def ocr_to_text(self,ocr_filename):
         # Given the file name of a searchable pdf,
         # we generate a text file.
         txt_filename = ocr_filename[:-4] + ".txt"
-        subprocess.call(["pdf2txt.py","-o", txt_filename,  ocr_filename])
+        try:
+            subprocess.call(["pdf2txt.py","-o", txt_filename,  ocr_filename])
+        except:
+            text_filename = None
         return txt_filename
 
-    def ocr_catalog(self):
+    def ocr_catalog(self, mode):
         # Takes each downloaded pdf file and converts it to a text file.
         print "\n\n Starting ocr_catalog \n\n"
         file_names_dict = {}
         for book in self.cat.collection:
             pdf_filename = str(book) + ".pdf"
-            if not os.path.isfile(pdf_filename):
-                print "File ", pdf_filename, " not present, attempting download..."
-                self.retrieve_book_pdf_with_key(book)
-            else:
-                print "File ", pdf_filename, " present, no need to download."
+            txt_filename = str(book) + "_ocr.txt"
+            if os.path.isfile(txt_filename):
+                print "File ", txt_filename, " present, so we don't need to download..."
+            elif mode != "ocr_no":
+                if not os.path.isfile(pdf_filename):
+                    print "File ", pdf_filename, " not present, attempting download..."
+                    self.retrieve_book_pdf_with_key(book)
+                else:
+                    print "File ", pdf_filename, " present, no need to download."
         for book in self.cat.collection:
             pdf_filename = str(book) + ".pdf"
-            if os.path.isfile(pdf_filename):
+            ocr_filename = str(book) + "_ocr.pdf"
+            txt_filename = str(book) + "_ocr.txt"
+            
+            if os.path.isfile(txt_filename):
+                print "File ", txt_filename, " present, so we don't need to OCR..."
+                file_names_dict[book] = [txt_filename, ocr_filename]
+            elif os.path.isfile(pdf_filename) and mode != "ocr_no":
                 txt_filename, ocr_filename = self.pdf_to_text(pdf_filename)
                 file_names_dict[book] = [txt_filename, ocr_filename]
         return file_names_dict                
     
-    def build_word_space(self):
+    def build_word_space(self, mode="ocr_no"):
         # Builds a catalog of pdf files with consider_catalog.
         # Performs OCR on each and calls ws.found_word on 
         # each unique word to build the ambient word space.
         print "\n\n Starting build_word_space..."
         self.ws = WordSpace()
-        if len(self.cat.collection) <= 0:
-            self.consider_catalog()
-        file_names_dict = self.ocr_catalog()
-        for book in file_names_dict:
-            f = open(file_names_dict[book][0], "r")
-            this_sentence = f.read()
-            f.close()
-            this_sentence = (this_sentence.translate(None, \
-                string.punctuation)).lower()
-            book_data =self.cat.collection[book]['title']
-            this_book = BookDataPoint()
-            this_book.assign_data(this_sentence, book_data)
-            self.ws.add_observation(this_book)
-        pass
+        from_file = self.ws.build_word_space_from_file()
+        if not from_file:
+            if len(self.cat.collection) <= 0:
+                self.consider_catalog()
+            file_names_dict = self.ocr_catalog(mode)
+            for book in file_names_dict:
+                print "Adding book ", book, " to word_space..."
+                if file_names_dict[book][0]:            
+                    try:
+                        f = open(file_names_dict[book][0], "r")
+                        this_sentence = f.read()
+                        f.close()
+                        this_sentence = (this_sentence.translate(None, \
+                            string.punctuation)).lower()
+                        book_data =self.cat.collection[book]['title']
+                    except:
+                        this_sentence = None                    
+                        book_data = None
+                    if this_sentence and book_data:
+                        this_book = BookDataPoint()
+                        this_book.assign_data(this_sentence, book_data)
+                        self.ws.add_observation(this_book)
+            self.ws.write_word_space_to_file()
+        return from_file
         
-    def cluster_word_space(self, number_clusters = 7, number_iterations = 100):
+    def cluster_word_space(self, number_clusters = 7, number_iterations = 3):
+        print "\n \n Beginning cluster_word_space..."
         converged = False # Stop when True
         # Generate some initial roots randomly.
+        print "Generating roots, working on iteration ", number_iterations
         self.ws.generate_initial_roots(number_roots=number_clusters)
 
         # Assign colors/clusters according to initial roots
+        print "Assigning colors."
         clustering_one = self.ws.cluster_observations(\
             number_clusters)
         # Find averages of colored clusters
+        print "Finding average of color groups."
         self.ws.find_clustering_means(clustering_one)
         # Set these averages to our initial roots
+        print "Reassigning roots to averages of color groups."
         self.ws.set_roots_to_means()
         # Assign colors/clusters according to initial roots again
+        print "Reassigning colors."
         clustering_two = self.ws.cluster_observations(\
             number_clusters)
-
+        print "Checking if reassigned colors are equivalent to assigned colors."
         # Check if second coloring is the same as the first.
         converged = not self.ws.check_equivalent_clusterings(self, \
             clustering_one, clustering_two)
 
         while not converged and number_iterations > 0:
+            print "\n\n Working on iteration ", number_iterations, "..."
             # Copy over
+            print "Assigning colors."
             clustering_one = copy.deepcopy(clustering_two)
             # Compute means of newest clustering.
+            print "Finding average of color groups."
             self.ws.find_clustering_means(clustering_one)
             # Set initial roots to these means.
+            print "Reassigning roots to averages of color groups."
             self.ws.set_roots_to_means()
             # Assign colors/clustering according to these initial roots
+            print "Reassigning colors."
             clustering_two = self.ws.cluster_observations(\
                 number_clusters)
             # Check if the newest coloring is the same as the latest.
+            print "Checking if reassigned colors are equivalent to assigned colors."
             converged = self.ws.check_equivalent_clusterings(self, \
                 clustering_one, clustering_two)
             number_iterations = number_iterations -1
@@ -1372,21 +1481,21 @@ class TestLibrarian(unittest.TestCase):
         pass
 
 
-print "\n\n Testing BookDataPoint object. \n\n"
-suite = unittest.TestLoader().loadTestsFromTestCase(TestBookDataPoint)
-unittest.TextTestRunner(verbosity=1).run(suite)
+#print "\n\n Testing BookDataPoint object. \n\n"
+#suite = unittest.TestLoader().loadTestsFromTestCase(TestBookDataPoint)
+#unittest.TextTestRunner(verbosity=1).run(suite)
 
-print "\n\n Testing WordSpace object. \n\n"
-suite = unittest.TestLoader().loadTestsFromTestCase(TestWordSpace)
-unittest.TextTestRunner(verbosity=1).run(suite)
+#print "\n\n Testing WordSpace object. \n\n"
+#suite = unittest.TestLoader().loadTestsFromTestCase(TestWordSpace)
+#unittest.TextTestRunner(verbosity=1).run(suite)
 
-print "\n\n Testing Catalog object. \n\n"
-suite = unittest.TestLoader().loadTestsFromTestCase(TestCatalog)
-unittest.TextTestRunner(verbosity=1).run(suite)
+#print "\n\n Testing Catalog object. \n\n"
+#suite = unittest.TestLoader().loadTestsFromTestCase(TestCatalog)
+#unittest.TextTestRunner(verbosity=1).run(suite)
 
 #print "\n\n Testing Librarian object. \n\n"
 #suite = unittest.TestLoader().loadTestsFromTestCase(TestLibrarian)
 #unittest.TextTestRunner(verbosity=1).run(suite)
 
-#edith = Librarian()
-#edith.display_solution()
+edith = Librarian()
+edith.display_solution()
