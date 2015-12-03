@@ -1545,10 +1545,5 @@ class TestLibrarian(unittest.TestCase):
 
 edith = Librarian()
 
-### Run the following line for a fresh fetching ###
-
-#edith.display_solution(webmode="offline", to_build_from_file = False, active_conversion=False)
-
-### Run the following line to process local text files ###
-
-edith.display_solution(webmode="offline", to_build_from_file = False, active_conversion=False)
+edith.display_solution(webmode="offline", to_build_from_file = False, active_conversion=False) # Run for offline work, with local text files
+#edith.display_solution(webmode="online", to_build_from_file = False, active_conversion=True) # Run for online fetching
