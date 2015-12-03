@@ -739,7 +739,7 @@ class WordSpace(object):
         for obs in self.observations:
             key = self.observations[obs].data
             hist = self.observations[obs].hist
-            print "Finding root for point ", obs
+            print "Finding root for point ", obs, self.observations[obs]
             root = self.ass_root_to_point(self.observations[obs])
 
             if root:
@@ -1374,8 +1374,7 @@ class Librarian(object):
 
         # Assign colors/clusters according to initial roots
         print "Assigning colors."
-        clustering_one = self.ws.cluster_observations(\
-            number_clusters)
+        clustering_one = self.ws.cluster_observations(number_clusters)
         # Find averages of colored clusters
         print "Finding average of color groups."
         self.ws.find_clustering_means(clustering_one)
@@ -1384,8 +1383,7 @@ class Librarian(object):
         self.ws.set_roots_to_means()
         # Assign colors/clusters according to initial roots again
         print "Reassigning colors."
-        clustering_two = self.ws.cluster_observations(\
-            number_clusters)
+        clustering_two = self.ws.cluster_observations(number_clusters)
         print "Checking if reassigned colors are equivalent to assigned colors."
         # Check if second coloring is the same as the first.
         converged = not self.ws.check_equivalent_clusterings(\
@@ -1546,4 +1544,11 @@ class TestLibrarian(unittest.TestCase):
 #unittest.TextTestRunner(verbosity=1).run(suite)
 
 edith = Librarian()
+
+### Run the following line for a fresh fetching ###
+
+#edith.display_solution(webmode="offline", to_build_from_file = False, active_conversion=False)
+
+### Run the following line to process local text files ###
+
 edith.display_solution(webmode="offline", to_build_from_file = False, active_conversion=False)
