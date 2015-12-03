@@ -662,17 +662,21 @@ class WordSpace(object):
         '''
         Pick initial cluster centers.
         '''
-        if not self.initial_roots:
-            self.initial_roots = {}
-            for i in range(number_roots):
-                title = "root " + str(i)
-                random_sentence = " ".join(self.get_random_sentence( \
-                    sentence_length=7))
-                
-                data_point = BookDataPoint()
-                data_point.assign_data(random_sentence, title)
-                
-                self.initial_roots[title] = data_point
+        self.initial_roots = {}
+        for i in range(number_roots):
+            randomKey = random.choice(list(self.observations.keys()))
+            self.initial_roots[randomKey] = self.observations[randomKey]
+        #if not self.initial_roots:
+        #    self.initial_roots = {}
+        #    for i in range(number_roots):
+        #        title = "root " + str(i)
+        #        random_sentence = " ".join(self.get_random_sentence( \
+        #            sentence_length=7))
+        #        
+        #        data_point = BookDataPoint()
+        #        data_point.assign_data(random_sentence, title)
+        #        
+        #        self.initial_roots[title] = data_point
         pass
         
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####
