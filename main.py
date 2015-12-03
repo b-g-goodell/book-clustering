@@ -514,19 +514,19 @@ class WordSpace(object):
 
     def write_word_space_to_file(self):
         if os.path.isfile(self.space_filename):
-            os.remove(space_filename)
+            os.remove(self.space_filename)
         f = open(self.space_filename,"w")
         for word in self.space:
             f.write(str(word) + "\n")
         f.close()
         
         if os.path.isfile(self.obs_filename):
-            os.remove(obs_filename)
+            os.remove(self.obs_filename)
         f = open(self.obs_filename,"w")
         for obs in self.observations:
             line = str(obs) + ";{"
-            for word in obs.hist:
-                line += str(word) + ":" + str(obs.hist[word]) + ", "
+            for word in self.observations[obs].hist:
+                line += str(word) + ":" + str(self.observations[obs].hist[word]) + ", "
             line += "}\n"
         f.close()
 
@@ -730,14 +730,24 @@ class WordSpace(object):
         color of the BookDataPoints in the value.
         '''
         result = {}
+        print "We have ", len(self.observations), " observations to work with..."
+
         for obs in self.observations:
             key = self.observations[obs].data
             hist = self.observations[obs].hist
+            print "Finding root for point ", obs
             root = self.ass_root_to_point(self.observations[obs])
-            if root not in result:
-                result[root] = {}
-                
-            result[root][self.observations[obs].data] = self.observations[obs]
+
+            if root:
+                print "Found root for point. Adding to result dictionary."
+                if root not in result:
+                    result[root] = {self.observations[obs].data : self.observations[obs]}
+                else:
+                    result[root][self.observations[obs].data]= self.observations[obs]
+            else:
+                print "Error finding nearest root in cluster_observations with book ", obs
+            #result[root][self.observations[obs].data] = self.observations[obs]
+        print result
             
         return result
         
@@ -808,13 +818,17 @@ class WordSpace(object):
         print the clustering scheme passed in otherwise.
         '''
         print "\n\n Printing clustering \n\n"
+        number_clusters = len(self.initial_roots)
+        clustering = self.cluster_observations(number_clusters)
+
         if clustering==None:
-            number_clusters = len(self.initial_roots)
-            clustering = self.cluster_observations(number_clusters)
-        for key in clustering:
-            print key
-            for book in clustering[key]:
-                print " "*5 + book
+            print "Error, null clustering"
+        else:
+            print clustering
+            for key in clustering:
+                print key
+                for book in clustering[key]:
+                    print " "*5 + book
         pass
 
 #### #### #### #### #### #### #### #### #### #### #### #### #### ####    
@@ -1258,45 +1272,70 @@ class Librarian(object):
             text_filename = None
         return txt_filename
 
-    def ocr_catalog(self, mode):
+    def ocr_catalog(self, mode="offline", active_conversion=False):
         # Takes each downloaded pdf file and converts it to a text file.
         print "\n\n Starting ocr_catalog \n\n"
         file_names_dict = {}
-        for book in self.cat.collection:
-            pdf_filename = str(book) + ".pdf"
-            txt_filename = str(book) + "_ocr.txt"
-            if os.path.isfile(txt_filename):
-                print "File ", txt_filename, " present, so we don't need to download..."
-            elif mode != "ocr_no":
-                if not os.path.isfile(pdf_filename):
-                    print "File ", pdf_filename, " not present, attempting download..."
-                    self.retrieve_book_pdf_with_key(book)
-                else:
-                    print "File ", pdf_filename, " present, no need to download."
-        for book in self.cat.collection:
-            pdf_filename = str(book) + ".pdf"
-            ocr_filename = str(book) + "_ocr.pdf"
-            txt_filename = str(book) + "_ocr.txt"
-            
-            if os.path.isfile(txt_filename):
-                print "File ", txt_filename, " present, so we don't need to OCR..."
-                file_names_dict[book] = [txt_filename, ocr_filename]
-            elif os.path.isfile(pdf_filename) and mode != "ocr_no":
-                txt_filename, ocr_filename = self.pdf_to_text(pdf_filename)
-                file_names_dict[book] = [txt_filename, ocr_filename]
+        offline = (mode=="offline")
+        if active_conversion:
+            print "\n\n Download each available PDF files unless they or ",\
+                "their text version exists. If the text file does not yet",\
+                " exist, then perform pdf_to_text on the file first."
+            for book in self.cat.collection:
+                pdf_filename = str(book) + ".pdf"
+                txt_filename = str(book) + "_ocr.txt"
+                if os.path.isfile(txt_filename):
+                    print "File ", txt_filename, " present, so we don't ",\
+                        "need to download..."
+                elif not offline:
+                    if not os.path.isfile(pdf_filename):
+                        print "File ", pdf_filename, " not present, ",\
+                            "attempting download..."
+                        self.retrieve_book_pdf_with_key(book)
+                    else:
+                        print "File ", pdf_filename, " present, no need",\
+                            " to download."
+            print "\n\n PDF files downloaded. Constructing filename ",\
+                "dictionary."
+            for book in self.cat.collection:
+                pdf_filename = str(book) + ".pdf"
+                ocr_filename = str(book) + "_ocr.pdf"
+                txt_filename = str(book) + "_ocr.txt"
+                
+                if os.path.isfile(txt_filename):
+                    print "File ", txt_filename, " present, so we don't ",\
+                        "need to OCR..."
+                    file_names_dict[book] = [txt_filename, ocr_filename]
+                elif os.path.isfile(pdf_filename) and not offline:
+                    print "File ", txt_filename, " not present and we are not",\
+                        " in offline mode, so we will convert the pdf to text."
+                    txt_filename, ocr_filename = self.pdf_to_text(pdf_filename)
+                    file_names_dict[book] = [txt_filename, ocr_filename]
+        else:
+            print "\n\n Store all available text filenames and return...",\
+                "(they have already been OCR'd)"
+            for book in self.cat.collection:
+                txt_filename = str(book) + "_ocr.txt"
+                ocr_filename = str(book) + "_ocr.pdf"
+                if os.path.isfile(txt_filename):
+                    file_names_dict[book] = [txt_filename, ocr_filename]
+        return file_names_dict
         return file_names_dict                
     
-    def build_word_space(self, mode="ocr_no"):
+    def build_word_space(self, webmode="offline",\
+        to_build_from_file=False, active_conversion=False):
         # Builds a catalog of pdf files with consider_catalog.
         # Performs OCR on each and calls ws.found_word on 
         # each unique word to build the ambient word space.
         print "\n\n Starting build_word_space..."
+
         self.ws = WordSpace()
-        from_file = self.ws.build_word_space_from_file()
-        if not from_file:
+        if to_build_from_file:
+            built = self.ws.build_word_space_from_file()
+        else:
             if len(self.cat.collection) <= 0:
                 self.consider_catalog()
-            file_names_dict = self.ocr_catalog(mode)
+            file_names_dict = self.ocr_catalog(webmode, active_conversion)
             for book in file_names_dict:
                 print "Adding book ", book, " to word_space..."
                 if file_names_dict[book][0]:            
@@ -1314,12 +1353,17 @@ class Librarian(object):
                         this_book = BookDataPoint()
                         this_book.assign_data(this_sentence, book_data)
                         self.ws.add_observation(this_book)
+                print len(self.ws.observations)
             self.ws.write_word_space_to_file()
-        return from_file
+            built=True
+        return built
         
-    def cluster_word_space(self, number_clusters = 7, number_iterations = 3):
-        print "\n \n Beginning cluster_word_space..."
+    def cluster_word_space(self, number_clusters = 3, number_iterations = 3):
+
+        print "\n \n Beginning cluster_word_space on observation set ", self.ws.observations
         converged = False # Stop when True
+        
+
         # Generate some initial roots randomly.
         print "Generating roots, working on iteration ", number_iterations
         self.ws.generate_initial_roots(number_roots=number_clusters)
@@ -1340,7 +1384,7 @@ class Librarian(object):
             number_clusters)
         print "Checking if reassigned colors are equivalent to assigned colors."
         # Check if second coloring is the same as the first.
-        converged = not self.ws.check_equivalent_clusterings(self, \
+        converged = not self.ws.check_equivalent_clusterings(\
             clustering_one, clustering_two)
 
         while not converged and number_iterations > 0:
@@ -1360,14 +1404,14 @@ class Librarian(object):
                 number_clusters)
             # Check if the newest coloring is the same as the latest.
             print "Checking if reassigned colors are equivalent to assigned colors."
-            converged = self.ws.check_equivalent_clusterings(self, \
+            converged = self.ws.check_equivalent_clusterings( \
                 clustering_one, clustering_two)
             number_iterations = number_iterations -1
         return clustering_two
     
-    def display_solution(self):
+    def display_solution(self, webmode, to_build_from_file, active_conversion):
         self.consider_catalog()
-        self.build_word_space()
+        self.build_word_space(webmode, to_build_from_file, active_conversion)
         soln = self.cluster_word_space()
         self.ws.report_clustering(soln)
     
@@ -1498,4 +1542,4 @@ class TestLibrarian(unittest.TestCase):
 #unittest.TextTestRunner(verbosity=1).run(suite)
 
 edith = Librarian()
-edith.display_solution()
+edith.display_solution(webmode="offline", to_build_from_file = False, active_conversion=False)
